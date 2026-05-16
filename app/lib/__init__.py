@@ -1,0 +1,1 @@
+"""Shared application library code."""
