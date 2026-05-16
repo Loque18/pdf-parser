@@ -3,7 +3,7 @@ from fastapi.openapi.utils import get_openapi
 
 from app.lib.config import settings
 from app.modules.health.router import router as health_router
-from app.modules.parser.router import router as parser_router
+from app.modules.parser.parser_router import router as parser_router
 from app.modules.post.router import router as post_router
 
 
