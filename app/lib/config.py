@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     app_name: str = "API Service"
     app_version: str = "0.1.0"
     database_url: str = "sqlite:///./app.db"
+    redis_url: str = "redis://localhost:6379/0"
+    job_queue_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
