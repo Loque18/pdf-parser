@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.lib.db import Base
@@ -22,7 +22,8 @@ class ParserFile(Base):
     )
     key: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(String, nullable=False)
-    parse_request_id: Mapped[str] = mapped_column(
+    parse_request_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("parse_requests.id", ondelete="CASCADE"),
         nullable=False,
     )

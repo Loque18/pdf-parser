@@ -6,9 +6,9 @@ from app.modules.parser.parser_service import process_parser_job_by_id
 
 
 @dramatiq.actor(queue_name="parser")
-def process_parser_job(job_id: str) -> None:
+def process_parser_job(request_id: str) -> None:
     session = get_session_factory()()
     try:
-        process_parser_job_by_id(session, job_id)
+        process_parser_job_by_id(session, request_id)
     finally:
         session.close()

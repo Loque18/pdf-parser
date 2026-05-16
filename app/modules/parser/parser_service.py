@@ -1,38 +1,41 @@
+from uuid import uuid4
+
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.lib.config import settings
+from app.lib.storage.storage_service import StorageService
 from app.modules.parser.parser_repository import ParserRepository
 
 
 async def parse_pdfs(db: Session, files: list[UploadFile]) -> dict[str, str]:
-    _ = files
+    storage_id = str(uuid4())
+    storage_svc = StorageService()
+    stored_files = await storage_svc.store_many(files, key=f"parse_requests/{storage_id}")
 
     repository = ParserRepository(db)
-    job = repository.create_job()
+    parse_request = repository.create_parse_request(storage_id, stored_files)
 
     if settings.job_queue_enabled:
         from app.modules.parser.jobs import process_parser_job
 
-        process_parser_job.send(job.id)
+        process_parser_job.send(parse_request.id)
 
     return {
         "message": "ok",
-        "job_id": job.id,
-        "status": job.status.value,
     }
 
 
-def process_parser_job_by_id(db: Session, job_id: str) -> None:
+def process_parser_job_by_id(db: Session, request_id: int) -> None:
     repository = ParserRepository(db)
-    job = repository.mark_running(job_id)
+    parse_request = repository.mark_processing(request_id)
 
-    if job is None:
+    if parse_request is None:
         return
 
     try:
-        print("doing job, saved pdf data to s3, updating job status to completed")
-        repository.mark_completed(job_id)
+        print("doing job")
+        repository.mark_processed(request_id)
     except Exception as exc:
-        repository.mark_failed(job_id, str(exc))
+        repository.mark_failed(request_id, str(exc))
         raise
