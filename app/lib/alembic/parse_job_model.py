@@ -76,7 +76,7 @@ class ParseJob(Base):
   
 
     parse_request: Mapped["ParseRequest"] = relationship(
-        back_populates="request_files",
+        back_populates="request_jobs",
     )
 
     request_file: Mapped["RequestFile"] = relationship(

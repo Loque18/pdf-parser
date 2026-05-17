@@ -49,7 +49,7 @@ def test_parse_pdf_files() -> None:
                     stored_path=f"storage/{key}/{file.filename}",
                     content_type=file.content_type,
                     size=len(await file.read()),
-                    key=f"{key}/{file.filename}",
+                    storage_key=f"{key}/{file.filename}",
                 )
                 for file in files
             ]

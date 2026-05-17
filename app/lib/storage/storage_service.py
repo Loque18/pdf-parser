@@ -11,8 +11,9 @@ class StoredFile:
     stored_name: str
     stored_path: str
     content_type: str | None
+    mime_type: str | None
     size: int
-    key: str | None = None
+    storage_key: str | None = None
 
 
 class StorageService:
@@ -22,11 +23,11 @@ class StorageService:
 
     async def store(
         self,
-        key: str,
+        storage_key: str,
         file: UploadFile,
     ) -> StoredFile:
         original_name = file.filename or "file"
-        target_path = self._resolve_path(key)
+        target_path = self._resolve_path(storage_key)
 
         data = await file.read()
         target_path.write_bytes(data)
@@ -34,23 +35,24 @@ class StorageService:
 
         return StoredFile(
             original_name=original_name,
-            stored_name=Path(key).name,
+            stored_name=Path(storage_key).name,
             stored_path=str(target_path),
             content_type=file.content_type,
+            mime_type=file.content_type,
             size=len(data),
-            key=key,
+            storage_key=storage_key,
         )
 
     async def store_many(
         self,
         files: list[UploadFile],
-        key: str,
+        storage_key: str,
     ) -> list[StoredFile]:
         stored_files: list[StoredFile] = []
         for file in files:
             original_name = file.filename or "file"
             stored_name = self._build_file_name(original_name)
-            file_key = f"{key.rstrip('/')}/{stored_name}"
+            file_key = f"{storage_key.rstrip('/')}/{stored_name}"
             stored_files.append(await self.store(file_key, file))
         return stored_files
 
@@ -59,8 +61,8 @@ class StorageService:
         if path.exists():
             path.unlink()
 
-    def _resolve_path(self, key: str) -> Path:
-        target_path = self.base_dir / key
+    def _resolve_path(self, storage_key: str) -> Path:
+        target_path = self.base_dir / storage_key
         target_path.parent.mkdir(parents=True, exist_ok=True)
         return target_path
 

@@ -52,14 +52,14 @@ class ParseRequest(Base):
 
     # ----- relationships ----- #
 
-    request_files: Mapped[list["RequestFile"]] = relationship(
+    request_files: Mapped[list["RequestFile"]] = relationship(        
         "RequestFile",
         back_populates="parse_request",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
-    request_jobs: Mapped[list["ParseJob"]] = relationship(
+    request_jobs: Mapped[list["ParseJob"]] = relationship(        
         "ParseJob",
         back_populates="parse_request",
         cascade="all, delete-orphan",

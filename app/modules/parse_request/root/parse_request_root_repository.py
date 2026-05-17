@@ -10,6 +10,9 @@ from app.lib.alembic.parse_request_model import ParseRequest, ParseRequestStatus
 from app.lib.alembic.request_file_model import RequestFile
 from app.lib.storage.storage_service import StoredFile
 
+# self
+from app.modules.parse_request.root.parse_request_dto import (CreateRequestDto)
+
 
 class ParseRequestRootRepository:
     def __init__(self, db: Session) -> None:
@@ -17,21 +20,20 @@ class ParseRequestRootRepository:
 
     def create_parse_request(
         self,
-        storage_id: str,
-        stored_files: list[StoredFile],
+        dto: CreateRequestDto        
     ) -> ParseRequest:
         parse_request = ParseRequest(
-            id=str(uuid4()),
-            storage_id=storage_id,
+            storage_id=dto.storage_id,
             status=ParseRequestStatus.pending,
         )
         self.db.add(parse_request)
         self.db.flush()
 
-        for stored_file in stored_files:
+        for stored_file in dto.stored_files:
             request_file = RequestFile(
                 original_name=stored_file.original_name,
-                key=stored_file.key or "",
+                storage_key=stored_file.storage_key,
+                mime_type=stored_file.mime_type,                
                 url=stored_file.stored_path,
                 parse_request_id=parse_request.id,
                 size=stored_file.size,
@@ -41,6 +43,7 @@ class ParseRequestRootRepository:
 
             self.db.add(
                 ParseJob(
+                    request_id=parse_request.id,
                     request_file_id=request_file.id,
                     status=ParseJobStatus.pending,
                 )
@@ -57,7 +60,7 @@ class ParseRequestRootRepository:
         statement = (
             select(ParseRequest)
             .options(                
-                selectinload(RequestFile.parse_job)
+                selectinload(ParseRequest.request_jobs)
             )
             .where(ParseRequest.id == request_id)
         )

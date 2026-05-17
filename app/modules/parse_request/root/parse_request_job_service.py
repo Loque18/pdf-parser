@@ -18,13 +18,13 @@ def process_parse_job(db: Session, parse_job_id: str) -> None:
 
 
 async def _process_parse_job(db: Session, parse_job_id: str) -> None:
-    output_repository = OutputRepository(db)
+
+    # select the job with related request file and parse request
     statement = (
         select(ParseJob)
         .options(
-            selectinload(ParseJob.request_file)
-            .selectinload(ParseJob.parse_request)
-            .selectinload(RequestFile.parse_job),
+            selectinload(ParseJob.request_file),
+            selectinload(ParseJob.parse_request),
             selectinload(ParseJob.parser_output),
         )
         .where(ParseJob.id == parse_job_id)
@@ -37,6 +37,7 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
     request_file = parse_job.request_file
     parse_request = parse_job.parse_request
 
+    # update job status to processing
     now = datetime.now(timezone.utc)
     parse_job.status = ParseJobStatus.processing
     parse_job.started_at = now
@@ -47,18 +48,23 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
     db.refresh(parse_job)
 
     try:
+        # extract data from graph
         graph = build_pdf_graph()
         result = await graph.ainvoke({"pdf_path": request_file.url})
+
+        # create output
         output_dto = OutputDTO(
             parse_job_id=parse_job.id,
             status="processed",
             payload={"items": result.get("normalized_data", [])},
         )
+        output_repository = OutputRepository(db)
         if output_repository.get_by_parse_job_id(parse_job.id) is None:
             output_repository.create_output(output_dto)
         else:
             output_repository.mark_processed(output_dto)
 
+        # finalize job
         print("doing job")
         parse_job.status = ParseJobStatus.processed
         parse_job.finished_at = datetime.now(timezone.utc)
@@ -77,7 +83,7 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
         parse_job.status = ParseJobStatus.failed
         parse_job.error_message = str(exc)
         parse_job.finished_at = datetime.now(timezone.utc)
-        _sync_parse_request_status(parse_request)
+        # _sync_parse_request_status(parse_request)
         db.commit()
         raise
 

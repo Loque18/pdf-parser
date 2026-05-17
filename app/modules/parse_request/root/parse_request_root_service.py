@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -12,31 +13,36 @@ from app.modules.parse_request.root.parse_request_root_repository import (
 
 from app.modules.parse_request.jobs import process_parser_job
 
+from app.modules.parse_request.root.parse_request_dto import CreateRequestDto
+
 
 
 async def parse_pdfs(db: Session, files: list[UploadFile]) -> dict[str, Any]:
     storage_id = str(uuid4())
     storage_svc = StorageService()
-    stored_files = await storage_svc.store_many(files, key=f"parse_requests/{storage_id}")
+    stored_files = await storage_svc.store_many(files, storage_key=f"parse_requests/{storage_id}")
 
-    repository = ParseRequestRootRepository(db)
-    parse_request = repository.create_parse_request(storage_id, stored_files)
+    repository = ParseRequestRootRepository(db)    
+    dto = CreateRequestDto(
+        storage_id=storage_id,
+        stored_files=stored_files,
+    )
+    parse_request = repository.create_parse_request(dto)
     parse_request_with_jobs = repository.get_parse_request_with_jobs(parse_request.id)
+
 
     for job in parse_request_with_jobs.request_jobs:
         process_parser_job.send(job.id)
 
     return {
-        "parse_request": {
-            "id": parse_request.id,
-            "status": parse_request.status.value,
-            "created_at": parse_request.created_at.isoformat(),
-            "expires_at": (
-                parse_request.expires_at.isoformat()
-                if parse_request.expires_at
-                else None
-            ),
-        }
+        "id": parse_request.id,
+        "status": parse_request.status.value,
+        "created_at": parse_request.created_at.isoformat(),
+        "expires_at": (
+            parse_request.expires_at.isoformat()
+            if parse_request.expires_at
+            else None
+        ),
     }
 
 

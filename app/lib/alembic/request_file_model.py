@@ -38,13 +38,12 @@ class RequestFile(Base):
     # ----- relationships ----- #
 
     parse_request: Mapped["ParseRequest"] = relationship(        
+        "ParseRequest",
         back_populates="request_files",
     )
 
-
-    # parse_job: Mapped["ParseJob | None"] = relationship(
-    #     back_populates="request_file",
-    #     cascade="all, delete-orphan",
-    #     passive_deletes=True,
-    #     uselist=False,
-    # )
+    parse_job: Mapped["ParseJob | None"] = relationship(
+        "ParseJob",
+        back_populates="request_file",
+        uselist=False,
+    )
