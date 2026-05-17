@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from app.lib.alembic.parser_file_model import ParserFile
 from app.lib.storage.storage_service import StoredFile
 
 
-class ParserRepository:
+class ParseRequestRootRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -19,6 +20,7 @@ class ParserRepository:
         stored_files: list[StoredFile],
     ) -> ParseRequest:
         parse_request = ParseRequest(
+            id=str(uuid4()),
             storage_id=storage_id,
             status=ParseRequestStatus.pending,
         )
@@ -40,18 +42,22 @@ class ParserRepository:
         self.db.refresh(parse_request)
         return parse_request
 
-    def get_parse_request(self, request_id: int) -> ParseRequest | None:
+    def get_parse_request(self, request_id: str) -> ParseRequest | None:
         return self.db.get(ParseRequest, request_id)
 
-    def get_parse_request_with_files(self, request_id: int) -> ParseRequest | None:
+    def get_parse_request_with_files(self, request_id: str) -> ParseRequest | None:
         statement = (
             select(ParseRequest)
-            .options(selectinload(ParseRequest.parser_files))
+            .options(
+                selectinload(ParseRequest.parser_files).selectinload(
+                    ParserFile.parser_output
+                )
+            )
             .where(ParseRequest.id == request_id)
         )
         return self.db.scalar(statement)
 
-    def mark_processing(self, request_id: int) -> ParseRequest | None:
+    def mark_processing(self, request_id: str) -> ParseRequest | None:
         parse_request = self.get_parse_request(request_id)
         if parse_request is None:
             return None
@@ -62,7 +68,7 @@ class ParserRepository:
         self.db.refresh(parse_request)
         return parse_request
 
-    def mark_processed(self, request_id: int) -> ParseRequest | None:
+    def mark_processed(self, request_id: str) -> ParseRequest | None:
         parse_request = self.get_parse_request(request_id)
         if parse_request is None:
             return None
@@ -75,7 +81,7 @@ class ParserRepository:
         self.db.refresh(parse_request)
         return parse_request
 
-    def mark_failed(self, request_id: int, error_message: str) -> ParseRequest | None:
+    def mark_failed(self, request_id: str, error_message: str) -> ParseRequest | None:
         parse_request = self.get_parse_request(request_id)
         if parse_request is None:
             return None

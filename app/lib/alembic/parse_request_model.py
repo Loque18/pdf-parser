@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Enum as SqlEnum, Integer, String, Text, func
+from sqlalchemy import DateTime, Enum as SqlEnum, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.lib.db import Base
@@ -24,10 +24,10 @@ class ParseRequestStatus(str, Enum):
 class ParseRequest(Base):
     __tablename__ = "parse_requests"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[str] = mapped_column(
+        String,
         primary_key=True,
-        autoincrement=True,
+        default=lambda: str(uuid4()),
     )
     storage_id: Mapped[str] = mapped_column(
         String,

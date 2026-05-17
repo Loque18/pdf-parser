@@ -10,7 +10,7 @@ class PdfGraphState(TypedDict, total=False):
     error: str
 
 
-def load_pdf_node(state: PdfGraphState) -> PdfGraphState:
+async def load_pdf_node(state: PdfGraphState) -> PdfGraphState:
     pdf_path = state.get("pdf_path", "")
     return {
         "pdf_path": pdf_path,
@@ -18,7 +18,7 @@ def load_pdf_node(state: PdfGraphState) -> PdfGraphState:
     }
 
 
-def extract_data_node(state: PdfGraphState) -> PdfGraphState:
+async def extract_data_node(state: PdfGraphState) -> PdfGraphState:
     pdf_path = state.get("pdf_path", "")
     return {
         "extracted_text": f"Mock extracted text from {pdf_path or 'pdf'}",
@@ -30,7 +30,7 @@ def extract_data_node(state: PdfGraphState) -> PdfGraphState:
     }
 
 
-def normalize_node(state: PdfGraphState) -> PdfGraphState:
+async def normalize_node(state: PdfGraphState) -> PdfGraphState:
     extracted_data = state.get("extracted_data", {})
     amount = float(extracted_data.get("amount", 0))
     tax_rate = 19

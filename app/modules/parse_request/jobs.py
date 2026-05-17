@@ -2,13 +2,15 @@ import dramatiq
 
 from app.lib import broker  # noqa: F401
 from app.lib.di.db import get_session_factory
-from app.modules.parser.parser_service import process_parser_job_by_id
+from app.modules.parse_request.root.parse_request_job_service import (
+    process_parse_request_job,
+)
 
 
 @dramatiq.actor(queue_name="parser")
 def process_parser_job(request_id: str) -> None:
     session = get_session_factory()()
     try:
-        process_parser_job_by_id(session, request_id)
+        process_parse_request_job(session, request_id)
     finally:
         session.close()

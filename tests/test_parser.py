@@ -5,12 +5,16 @@ from sqlalchemy.pool import StaticPool
 
 from app.lib.alembic.parse_request_model import ParseRequest, ParseRequestStatus
 from app.lib.alembic.parser_file_model import ParserFile
+from app.lib.alembic.parser_output_model import ParserOutput
 from app.lib.db import Base
 from app.lib.di.db import get_db
 from app.lib.storage.storage_service import StoredFile
 from app.main import app
-from app.modules.parser import parser_service
-from app.modules.parser.parser_service import process_parser_job_by_id
+from app.modules.parse_request.root import parse_request_job_service
+from app.modules.parse_request.root import parse_request_root_service
+from app.modules.parse_request.root.parse_request_job_service import (
+    process_parse_request_job,
+)
 
 client = TestClient(app)
 
@@ -49,10 +53,11 @@ def test_parse_pdf_files() -> None:
                 for file in files
             ]
 
-    original_storage_service = parser_service.StorageService
-    parser_service.StorageService = FakeStorageService
+    original_storage_service = parser_request_root_service.StorageService
+    parser_request_root_service.StorageService = FakeStorageService
 
     with Session(engine) as session:
+        session.query(ParserOutput).delete()
         session.query(ParserFile).delete()
         session.query(ParseRequest).delete()
         session.commit()
@@ -66,7 +71,7 @@ def test_parse_pdf_files() -> None:
             ],
         )
     finally:
-        parser_service.StorageService = original_storage_service
+        parser_request_root_service.StorageService = original_storage_service
 
     assert response.status_code == 200
     body = response.json()
@@ -78,7 +83,7 @@ def test_parse_pdf_files() -> None:
         parser_files = session.scalars(select(ParserFile)).all()
 
     assert parse_request is not None
-    assert isinstance(parse_request.id, int)
+    assert isinstance(parse_request.id, str)
     assert parse_request.storage_id
     assert parse_request.status == ParseRequestStatus.pending
     assert len(parser_files) == 2
@@ -94,15 +99,26 @@ def test_process_parser_job_marks_job_completed() -> None:
         def __init__(self) -> None:
             self.invocations: list[dict] = []
 
-        def invoke(self, state: dict) -> dict:
+        async def ainvoke(self, state: dict) -> dict:
             self.invocations.append(state)
-            return {"normalized_data": {"source_file": state["pdf_path"]}}
+            return {
+                "normalized_data": [
+                    {
+                        "customer": "ACME Corp",
+                        "amount": 100.0,
+                        "tax_rate": 19,
+                        "tax_amount": 19.0,
+                        "total": 119.0,
+                    }
+                ]
+            }
 
     fake_graph = FakeGraph()
-    original_build_pdf_graph = parser_service.build_pdf_graph
-    parser_service.build_pdf_graph = lambda: fake_graph
+    original_build_pdf_graph = parse_request_job_service.build_pdf_graph
+    parse_request_job_service.build_pdf_graph = lambda: fake_graph
 
     with Session(engine) as session:
+        session.query(ParserOutput).delete()
         session.query(ParserFile).delete()
         session.query(ParseRequest).delete()
         session.commit()
@@ -112,6 +128,7 @@ def test_process_parser_job_marks_job_completed() -> None:
         session.flush()
         session.add(
             ParserFile(
+                original_name="first.pdf",
                 key=f"parse_requests/{parse_request.storage_id}/first.pdf",
                 url=f"storage/parse_requests/{parse_request.storage_id}/first.pdf",
                 parse_request_id=parse_request.id,
@@ -124,18 +141,32 @@ def test_process_parser_job_marks_job_completed() -> None:
 
     try:
         with Session(engine) as session:
-            process_parser_job_by_id(session, request_id)
+            process_parse_request_job(session, request_id)
     finally:
-        parser_service.build_pdf_graph = original_build_pdf_graph
+        parse_request_job_service.build_pdf_graph = original_build_pdf_graph
 
     with Session(engine) as session:
         parse_request = session.scalar(select(ParseRequest).where(ParseRequest.id == request_id))
+        parser_output = session.scalar(select(ParserOutput))
 
     assert parse_request is not None
     assert parse_request.status == ParseRequestStatus.processed
     assert parse_request.started_at is not None
     assert parse_request.finished_at is not None
     assert parse_request.expires_at is not None
+    assert parser_output is not None
+    assert parser_output.status == "processed"
+    assert parser_output.payload == {
+        "items": [
+            {
+                "customer": "ACME Corp",
+                "amount": 100.0,
+                "tax_rate": 19,
+                "tax_amount": 19.0,
+                "total": 119.0,
+            }
+        ]
+    }
     assert fake_graph.invocations == [
         {"pdf_path": f"storage/parse_requests/{parse_request.storage_id}/first.pdf"}
     ]
