@@ -10,6 +10,7 @@ from app.lib.db import Base
 
 if TYPE_CHECKING:
     from app.lib.alembic.parse_request_model import ParseRequest
+    from app.lib.alembic.parser_output_model import ParserOutput
 
 
 class ParserFile(Base):
@@ -20,6 +21,7 @@ class ParserFile(Base):
         primary_key=True,
         default=lambda: str(uuid4()),
     )
+    original_name: Mapped[str] = mapped_column(String, nullable=False)
     key: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(String, nullable=False)
     parse_request_id: Mapped[int] = mapped_column(
@@ -31,4 +33,10 @@ class ParserFile(Base):
 
     parse_request: Mapped["ParseRequest"] = relationship(
         back_populates="parser_files",
+    )
+    parser_output: Mapped["ParserOutput | None"] = relationship(
+        back_populates="parser_file",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
     )

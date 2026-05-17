@@ -6,7 +6,7 @@ class PdfGraphState(TypedDict, total=False):
     pdf_bytes: bytes
     extracted_text: str
     extracted_data: dict
-    normalized_data: dict
+    normalized_data: list[dict]
     error: str
 
 
@@ -23,8 +23,8 @@ def extract_data_node(state: PdfGraphState) -> PdfGraphState:
     return {
         "extracted_text": f"Mock extracted text from {pdf_path or 'pdf'}",
         "extracted_data": {
-            "title": "Mock PDF Title",
-            "pages": 1,
+            "customer": "ACME Corp",
+            "amount": 100.0,
             "source": pdf_path,
         },
     }
@@ -32,12 +32,21 @@ def extract_data_node(state: PdfGraphState) -> PdfGraphState:
 
 def normalize_node(state: PdfGraphState) -> PdfGraphState:
     extracted_data = state.get("extracted_data", {})
+    amount = float(extracted_data.get("amount", 0))
+    tax_rate = 19
+    tax_amount = round(amount * tax_rate / 100, 2)
+    total = round(amount + tax_amount, 2)
+
     return {
-        "normalized_data": {
-            "document_title": extracted_data.get("title", ""),
-            "page_count": extracted_data.get("pages", 0),
-            "source_file": extracted_data.get("source", ""),
-        }
+        "normalized_data": [
+            {
+                "customer": extracted_data.get("customer", ""),
+                "amount": amount,
+                "tax_rate": tax_rate,
+                "tax_amount": tax_amount,
+                "total": total,
+            }
+        ]
     }
 
 

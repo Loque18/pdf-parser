@@ -28,6 +28,7 @@ class ParserRepository:
         for stored_file in stored_files:
             self.db.add(
                 ParserFile(
+                    original_name=stored_file.original_name,
                     key=stored_file.key or "",
                     url=stored_file.stored_path,
                     parse_request_id=parse_request.id,
