@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -34,7 +35,7 @@ class ParseRequestRootRepository:
                 original_name=stored_file.original_name,
                 storage_key=stored_file.storage_key,
                 mime_type=stored_file.mime_type,                
-                url=stored_file.stored_path,
+                url=(Path('uploads') / stored_file.storage_key).as_posix(),
                 parse_request_id=parse_request.id,
                 size=stored_file.size,
             )

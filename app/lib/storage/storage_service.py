@@ -69,3 +69,5 @@ class StorageService:
     def _build_file_name(self, original_name: str) -> str:
         suffix = Path(original_name).suffix
         return f"{uuid4()}{suffix}"
+
+    

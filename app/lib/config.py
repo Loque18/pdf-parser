@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./app.db"
     redis_url: str = "redis://localhost:6379/0"
     job_queue_enabled: bool = False
+    llama_api_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

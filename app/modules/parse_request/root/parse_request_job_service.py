@@ -47,10 +47,13 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
     db.commit()
     db.refresh(parse_job)
 
+    output_repository = OutputRepository(db)
+
     try:
         # extract data from graph
+        print("calling graph")
         graph = build_pdf_graph()
-        result = await graph.ainvoke({"pdf_path": request_file.url})
+        result = await graph.ainvoke({"pdf_path": "storage/"+ request_file.storage_key})
 
         # create output
         output_dto = OutputDTO(
@@ -58,7 +61,6 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
             status="processed",
             payload={"items": result.get("normalized_data", [])},
         )
-        output_repository = OutputRepository(db)
         if output_repository.get_by_parse_job_id(parse_job.id) is None:
             output_repository.create_output(output_dto)
         else:

@@ -1,8 +1,11 @@
 from typing import TypedDict
 
+from app.lib.ai.pdf_tools import extract_pdf_text
 
 class PdfGraphState(TypedDict, total=False):
     pdf_path: str
+
+
     pdf_bytes: bytes
     extracted_text: str
     extracted_data: dict
@@ -10,22 +13,24 @@ class PdfGraphState(TypedDict, total=False):
     error: str
 
 
-async def load_pdf_node(state: PdfGraphState) -> PdfGraphState:
+async def parse_pdf_node(state: PdfGraphState) -> PdfGraphState:
     pdf_path = state.get("pdf_path", "")
-    return {
-        "pdf_path": pdf_path,
-        "pdf_bytes": b"%PDF-mock-content",
+
+    extracted_text = await extract_pdf_text(pdf_path)
+
+    return {        
+        "extracted_text": extracted_text,
     }
 
 
 async def extract_data_node(state: PdfGraphState) -> PdfGraphState:
-    pdf_path = state.get("pdf_path", "")
+    extracted_text = state.get("extracted_text", "")
+
     return {
-        "extracted_text": f"Mock extracted text from {pdf_path or 'pdf'}",
         "extracted_data": {
             "customer": "ACME Corp",
             "amount": 100.0,
-            "source": pdf_path,
+            "source": "unknown",
         },
     }
 
@@ -59,12 +64,12 @@ def build_pdf_graph():
         ) from exc
 
     graph = StateGraph(PdfGraphState)
-    graph.add_node("load_pdf", load_pdf_node)
+    graph.add_node("parse_pdf", parse_pdf_node)
     graph.add_node("extract_data", extract_data_node)
     graph.add_node("normalize", normalize_node)
 
-    graph.add_edge(START, "load_pdf")
-    graph.add_edge("load_pdf", "extract_data")
+    graph.add_edge(START, "parse_pdf")
+    graph.add_edge("parse_pdf", "extract_data")
     graph.add_edge("extract_data", "normalize")
     graph.add_edge("normalize", END)
 
