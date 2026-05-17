@@ -90,6 +90,18 @@ def test_parse_pdf_files() -> None:
 
 
 def test_process_parser_job_marks_job_completed() -> None:
+    class FakeGraph:
+        def __init__(self) -> None:
+            self.invocations: list[dict] = []
+
+        def invoke(self, state: dict) -> dict:
+            self.invocations.append(state)
+            return {"normalized_data": {"source_file": state["pdf_path"]}}
+
+    fake_graph = FakeGraph()
+    original_build_pdf_graph = parser_service.build_pdf_graph
+    parser_service.build_pdf_graph = lambda: fake_graph
+
     with Session(engine) as session:
         session.query(ParserFile).delete()
         session.query(ParseRequest).delete()
@@ -97,12 +109,24 @@ def test_process_parser_job_marks_job_completed() -> None:
 
         parse_request = ParseRequest(status=ParseRequestStatus.pending)
         session.add(parse_request)
+        session.flush()
+        session.add(
+            ParserFile(
+                key=f"parse_requests/{parse_request.storage_id}/first.pdf",
+                url=f"storage/parse_requests/{parse_request.storage_id}/first.pdf",
+                parse_request_id=parse_request.id,
+                size=123,
+            )
+        )
         session.commit()
         session.refresh(parse_request)
         request_id = parse_request.id
 
-    with Session(engine) as session:
-        process_parser_job_by_id(session, request_id)
+    try:
+        with Session(engine) as session:
+            process_parser_job_by_id(session, request_id)
+    finally:
+        parser_service.build_pdf_graph = original_build_pdf_graph
 
     with Session(engine) as session:
         parse_request = session.scalar(select(ParseRequest).where(ParseRequest.id == request_id))
@@ -112,3 +136,6 @@ def test_process_parser_job_marks_job_completed() -> None:
     assert parse_request.started_at is not None
     assert parse_request.finished_at is not None
     assert parse_request.expires_at is not None
+    assert fake_graph.invocations == [
+        {"pdf_path": f"storage/parse_requests/{parse_request.storage_id}/first.pdf"}
+    ]

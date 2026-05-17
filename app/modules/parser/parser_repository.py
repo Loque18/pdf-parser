@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import selectinload
 
 from app.lib.alembic.parse_request_model import ParseRequest, ParseRequestStatus
 from app.lib.alembic.parser_file_model import ParserFile
@@ -39,6 +41,14 @@ class ParserRepository:
 
     def get_parse_request(self, request_id: int) -> ParseRequest | None:
         return self.db.get(ParseRequest, request_id)
+
+    def get_parse_request_with_files(self, request_id: int) -> ParseRequest | None:
+        statement = (
+            select(ParseRequest)
+            .options(selectinload(ParseRequest.parser_files))
+            .where(ParseRequest.id == request_id)
+        )
+        return self.db.scalar(statement)
 
     def mark_processing(self, request_id: int) -> ParseRequest | None:
         parse_request = self.get_parse_request(request_id)

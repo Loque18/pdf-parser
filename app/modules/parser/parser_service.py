@@ -3,6 +3,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
+from app.lib.ai.graphs.pdf_graph import build_pdf_graph
 from app.lib.config import settings
 from app.lib.storage.storage_service import StorageService
 from app.modules.parser.parser_repository import ParserRepository
@@ -34,6 +35,14 @@ def process_parser_job_by_id(db: Session, request_id: int) -> None:
         return
 
     try:
+        parse_request = repository.get_parse_request_with_files(request_id)
+        if parse_request is None or not parse_request.parser_files:
+            raise ValueError("No parser files found for parse request.")
+
+        graph = build_pdf_graph()
+        for parser_file in parse_request.parser_files:
+            graph.invoke({"pdf_path": parser_file.url})
+
         print("doing job")
         repository.mark_processed(request_id)
     except Exception as exc:
