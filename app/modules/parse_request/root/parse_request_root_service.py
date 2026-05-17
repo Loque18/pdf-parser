@@ -10,6 +10,9 @@ from app.modules.parse_request.root.parse_request_root_repository import (
     ParseRequestRootRepository,
 )
 
+from app.modules.parse_request.jobs import process_parser_job
+
+
 
 async def parse_pdfs(db: Session, files: list[UploadFile]) -> dict[str, Any]:
     storage_id = str(uuid4())
@@ -18,20 +21,28 @@ async def parse_pdfs(db: Session, files: list[UploadFile]) -> dict[str, Any]:
 
     repository = ParseRequestRootRepository(db)
     parse_request = repository.create_parse_request(storage_id, stored_files)
+    parse_request_with_jobs = repository.get_parse_request_with_jobs(parse_request.id)
 
-    if settings.job_queue_enabled:
-        from app.modules.parse_request.jobs import process_parser_job
+    for job in parse_request_with_jobs.request_jobs:
+        process_parser_job.send(job.id)
 
-        process_parser_job.send(parse_request.id)
-
-    return {        
-        "request_id": parse_request.id
+    return {
+        "parse_request": {
+            "id": parse_request.id,
+            "status": parse_request.status.value,
+            "created_at": parse_request.created_at.isoformat(),
+            "expires_at": (
+                parse_request.expires_at.isoformat()
+                if parse_request.expires_at
+                else None
+            ),
+        }
     }
 
 
 def get_parse_request_by_id(db: Session, request_id: str) -> dict[str, Any]:
     repository = ParseRequestRootRepository(db)
-    parse_request = repository.get_parse_request_with_files(request_id)
+    parse_request = repository.get_parse_request_with_jobs(request_id)
 
     if parse_request is None:
         raise HTTPException(
@@ -42,20 +53,24 @@ def get_parse_request_by_id(db: Session, request_id: str) -> dict[str, Any]:
     results: list[dict[str, Any]] | None = None
     if parse_request.status.value != "pending":
         results = []
-        for parser_file in parse_request.parser_files:
+        for request_file in parse_request.request_files:
+            parser_output = None
+            if request_file.parse_job is not None:
+                parser_output = request_file.parse_job.parser_output
+
             results.append(
                 {
                     "file": {
-                        "original_name": parser_file.original_name,
-                        "url": parser_file.url,
-                        "key": parser_file.key,
+                        "original_name": request_file.original_name,
+                        "url": request_file.url,
+                        "key": request_file.storage_key,
                     },
                     "output": (
                         None
-                        if parser_file.parser_output is None
+                        if parser_output is None
                         else {
-                            "id": parser_file.parser_output.id,
-                            "payload": parser_file.parser_output.payload,
+                            "id": parser_output.id,
+                            "payload": parser_output.payload,
                         }
                     ),
                 }
@@ -66,17 +81,9 @@ def get_parse_request_by_id(db: Session, request_id: str) -> dict[str, Any]:
             "id": parse_request.id,
             "status": parse_request.status.value,
             "created_at": parse_request.created_at.isoformat(),
-            "started_at": (
-                parse_request.started_at.isoformat()
-                if parse_request.started_at
-                else None
-            ),
-            "finished_at": (
-                parse_request.finished_at.isoformat()
-                if parse_request.finished_at
-                else None
-            ),
-            "error_message": parse_request.error_message,
+            "started_at": None,
+            "finished_at": None,
+            "error_message": None,
             "results": results,
         }
     }

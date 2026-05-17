@@ -3,8 +3,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.lib.alembic.parse_job_model import ParseJob
 from app.lib.alembic.parse_request_model import ParseRequest, ParseRequestStatus
-from app.lib.alembic.parser_file_model import ParserFile
+from app.lib.alembic.request_file_model import RequestFile
 from app.lib.alembic.parser_output_model import ParserOutput
 from app.lib.db import Base
 from app.lib.di.db import get_db
@@ -13,7 +14,7 @@ from app.main import app
 from app.modules.parse_request.root import parse_request_job_service
 from app.modules.parse_request.root import parse_request_root_service
 from app.modules.parse_request.root.parse_request_job_service import (
-    process_parse_request_job,
+    process_parse_job,
 )
 
 client = TestClient(app)
@@ -58,7 +59,8 @@ def test_parse_pdf_files() -> None:
 
     with Session(engine) as session:
         session.query(ParserOutput).delete()
-        session.query(ParserFile).delete()
+        session.query(ParseJob).delete()
+        session.query(RequestFile).delete()
         session.query(ParseRequest).delete()
         session.commit()
 
@@ -76,22 +78,26 @@ def test_parse_pdf_files() -> None:
     assert response.status_code == 200
     body = response.json()
 
-    assert body["message"] == "ok"
+    assert body["parse_request"]["id"]
+    assert body["parse_request"]["status"] == "pending"
 
     with Session(engine) as session:
         parse_request = session.scalar(select(ParseRequest))
-        parser_files = session.scalars(select(ParserFile)).all()
+        request_files = session.scalars(select(RequestFile)).all()
+        parse_jobs = session.scalars(select(ParseJob)).all()
 
     assert parse_request is not None
     assert isinstance(parse_request.id, str)
     assert parse_request.storage_id
     assert parse_request.status == ParseRequestStatus.pending
-    assert len(parser_files) == 2
-    assert all(parser_file.parse_request_id == parse_request.id for parser_file in parser_files)
+    assert len(request_files) == 2
+    assert len(parse_jobs) == 2
+    assert all(request_file.parse_request_id == parse_request.id for request_file in request_files)
     assert all(
-        parser_file.key.startswith(f"parse_requests/{parse_request.storage_id}/")
-        for parser_file in parser_files
+        request_file.storage_key.startswith(f"parse_requests/{parse_request.storage_id}/")
+        for request_file in request_files
     )
+    assert all(parse_job.request_file_id for parse_job in parse_jobs)
 
 
 def test_process_parser_job_marks_job_completed() -> None:
@@ -119,29 +125,36 @@ def test_process_parser_job_marks_job_completed() -> None:
 
     with Session(engine) as session:
         session.query(ParserOutput).delete()
-        session.query(ParserFile).delete()
+        session.query(ParseJob).delete()
+        session.query(RequestFile).delete()
         session.query(ParseRequest).delete()
         session.commit()
 
         parse_request = ParseRequest(status=ParseRequestStatus.pending)
         session.add(parse_request)
         session.flush()
+        request_file = RequestFile(
+            original_name="first.pdf",
+            key=f"parse_requests/{parse_request.storage_id}/first.pdf",
+            url=f"storage/parse_requests/{parse_request.storage_id}/first.pdf",
+            parse_request_id=parse_request.id,
+            size=123,
+        )
+        session.add(request_file)
+        session.flush()
         session.add(
-            ParserFile(
-                original_name="first.pdf",
-                key=f"parse_requests/{parse_request.storage_id}/first.pdf",
-                url=f"storage/parse_requests/{parse_request.storage_id}/first.pdf",
-                parse_request_id=parse_request.id,
-                size=123,
+            ParseJob(
+                request_file_id=request_file.id,
             )
         )
         session.commit()
         session.refresh(parse_request)
         request_id = parse_request.id
+        parse_job_id = session.scalar(select(ParseJob.id))
 
     try:
         with Session(engine) as session:
-            process_parse_request_job(session, request_id)
+            process_parse_job(session, parse_job_id)
     finally:
         parse_request_job_service.build_pdf_graph = original_build_pdf_graph
 
@@ -151,11 +164,8 @@ def test_process_parser_job_marks_job_completed() -> None:
 
     assert parse_request is not None
     assert parse_request.status == ParseRequestStatus.processed
-    assert parse_request.started_at is not None
-    assert parse_request.finished_at is not None
     assert parse_request.expires_at is not None
     assert parser_output is not None
-    assert parser_output.status == "processed"
     assert parser_output.payload == {
         "items": [
             {

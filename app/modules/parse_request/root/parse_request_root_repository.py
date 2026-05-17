@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
+from app.lib.alembic.parse_job_model import ParseJob, ParseJobStatus
 from app.lib.alembic.parse_request_model import ParseRequest, ParseRequestStatus
-from app.lib.alembic.parser_file_model import ParserFile
+from app.lib.alembic.request_file_model import RequestFile
 from app.lib.storage.storage_service import StoredFile
 
 
@@ -28,13 +29,20 @@ class ParseRequestRootRepository:
         self.db.flush()
 
         for stored_file in stored_files:
+            request_file = RequestFile(
+                original_name=stored_file.original_name,
+                key=stored_file.key or "",
+                url=stored_file.stored_path,
+                parse_request_id=parse_request.id,
+                size=stored_file.size,
+            )
+            self.db.add(request_file)
+            self.db.flush()
+
             self.db.add(
-                ParserFile(
-                    original_name=stored_file.original_name,
-                    key=stored_file.key or "",
-                    url=stored_file.stored_path,
-                    parse_request_id=parse_request.id,
-                    size=stored_file.size,
+                ParseJob(
+                    request_file_id=request_file.id,
+                    status=ParseJobStatus.pending,
                 )
             )
 
@@ -45,13 +53,11 @@ class ParseRequestRootRepository:
     def get_parse_request(self, request_id: str) -> ParseRequest | None:
         return self.db.get(ParseRequest, request_id)
 
-    def get_parse_request_with_files(self, request_id: str) -> ParseRequest | None:
+    def get_parse_request_with_jobs(self, request_id: str) -> ParseRequest | None:
         statement = (
             select(ParseRequest)
-            .options(
-                selectinload(ParseRequest.parser_files).selectinload(
-                    ParserFile.parser_output
-                )
+            .options(                
+                selectinload(RequestFile.parse_job)
             )
             .where(ParseRequest.id == request_id)
         )
@@ -63,7 +69,6 @@ class ParseRequestRootRepository:
             return None
 
         parse_request.status = ParseRequestStatus.processing
-        parse_request.started_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(parse_request)
         return parse_request
@@ -73,10 +78,8 @@ class ParseRequestRootRepository:
         if parse_request is None:
             return None
 
-        now = datetime.now(timezone.utc)
         parse_request.status = ParseRequestStatus.processed
-        parse_request.finished_at = now
-        parse_request.expires_at = now + timedelta(hours=24)
+        parse_request.expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
         self.db.commit()
         self.db.refresh(parse_request)
         return parse_request
@@ -86,11 +89,8 @@ class ParseRequestRootRepository:
         if parse_request is None:
             return None
 
-        now = datetime.now(timezone.utc)
         parse_request.status = ParseRequestStatus.failed
-        parse_request.error_message = error_message
-        parse_request.finished_at = now
-        parse_request.expires_at = now + timedelta(hours=24)
+        parse_request.expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
         self.db.commit()
         self.db.refresh(parse_request)
         return parse_request

@@ -5,13 +5,14 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Enum as SqlEnum, String, Text, func
+from sqlalchemy import DateTime, Enum as SqlEnum, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.lib.db import Base
 
 if TYPE_CHECKING:
-    from app.lib.alembic.parser_file_model import ParserFile
+    from app.lib.alembic.request_file_model import RequestFile
+    from app.lib.alembic.parse_job_model import ParseJob
 
 
 class ParseRequestStatus(str, Enum):
@@ -44,24 +45,22 @@ class ParseRequest(Base):
         server_default=func.now(),
         nullable=False,
     )
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-    error_message: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
 
-    parser_files: Mapped[list["ParserFile"]] = relationship(
+    # ----- relationships ----- #
+
+    request_files: Mapped[list["RequestFile"]] = relationship(
+        "RequestFile",
+        back_populates="parse_request",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    request_jobs: Mapped[list["ParseJob"]] = relationship(
+        "ParseJob",
         back_populates="parse_request",
         cascade="all, delete-orphan",
         passive_deletes=True,

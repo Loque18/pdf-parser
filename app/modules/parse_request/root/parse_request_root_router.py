@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -16,7 +17,7 @@ router = APIRouter()
 async def parse_pdf_files(
     files: Annotated[list[UploadFile], File(description="PDF files to parse")],
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> dict[str, Any]:
     return await parse_pdfs(db, files)
 
 
