@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.lib.ai.graphs.pdf_graph import build_pdf_graph
 from app.lib.alembic.parse_job_model import ParseJob, ParseJobStatus
-from app.lib.alembic.parse_request_model import ParseRequestStatus
+from app.lib.alembic.parse_request_model import ParseRequestStatus, ParseRequest
 from app.lib.alembic.request_file_model import RequestFile
 from app.modules.parse_request.output.output_dto import OutputDTO
 from app.modules.parse_request.output.output_repository import OutputRepository
@@ -59,7 +59,7 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
         output_dto = OutputDTO(
             parse_job_id=parse_job.id,
             status="processed",
-            payload={"items": result.get("normalized_data", [])},
+            payload=result.get("normalized_data", []),
         )
         if output_repository.get_by_parse_job_id(parse_job.id) is None:
             output_repository.create_output(output_dto)
@@ -85,7 +85,7 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
         parse_job.status = ParseJobStatus.failed
         parse_job.error_message = str(exc)
         parse_job.finished_at = datetime.now(timezone.utc)
-        # _sync_parse_request_status(parse_request)
+        _sync_parse_request_status(parse_request)
         db.commit()
         raise
 
@@ -93,12 +93,8 @@ async def _process_parse_job(db: Session, parse_job_id: str) -> None:
     db.commit()
 
 
-def _sync_parse_request_status(parse_request) -> None:
-    jobs = [
-        request_file.parse_job
-        for request_file in parse_request.request_files
-        if request_file.parse_job is not None
-    ]
+def _sync_parse_request_status(parse_request: ParseRequest) -> None:
+    jobs = [job for job in parse_request.request_jobs if job is not None]        
     if not jobs:
         parse_request.status = ParseRequestStatus.pending
         return

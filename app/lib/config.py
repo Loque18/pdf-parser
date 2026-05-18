@@ -10,10 +10,18 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     job_queue_enabled: bool = False
     llama_api_key: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str = "gpt-4.1-mini"
+
+    langsmith_api_key: str | None = None
+    langsmith_tracing: bool = False
+    langsmith_project: str | None = None
+
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 

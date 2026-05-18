@@ -7,7 +7,12 @@ from app.modules.parse_request.root.parse_request_job_service import (
 )
 
 
-@dramatiq.actor(queue_name="parser")
+@dramatiq.actor(
+    queue_name="parser",
+    max_retries=5,
+    min_backoff=10_000,  # 10 seconds
+    max_backoff=300_000,  # 5 minutes
+)
 def process_parser_job(parse_job_id: str) -> None:
     session = get_session_factory()()
     try:

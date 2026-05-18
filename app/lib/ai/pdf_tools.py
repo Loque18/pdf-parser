@@ -39,5 +39,6 @@ async def extract_pdf_text(pdf_path: str) -> str:
         expand=["markdown_full", "text_full"]
     )
 
-    print(result)
-    return ""
+    
+
+    return result.text_full

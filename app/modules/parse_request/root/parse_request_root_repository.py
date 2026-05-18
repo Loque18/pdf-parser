@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 from pathlib import Path
 
 from sqlalchemy import select

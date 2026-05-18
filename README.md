@@ -74,3 +74,18 @@ Run the worker with:
 ```bash
 dramatiq app.lib.queue:redis_broker worker
 ```
+
+## Docker
+
+Build and start the stack:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- `api` on `http://localhost:8000`
+- `worker` for Dramatiq jobs
+- `db` on PostgreSQL `localhost:5432`
+- `redis` on `localhost:6379`

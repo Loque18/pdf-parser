@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.lib.config import settings
 from app.lib.logging import logger, setup_logging
@@ -7,7 +8,6 @@ from app.modules.health.router import router as health_router
 from app.modules.parse_request.root.parse_request_root_router import (
     router as parser_router,
 )
-from app.modules.post.router import router as post_router
 
 setup_logging()
 
@@ -19,9 +19,15 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(health_router, tags=["health"])
     app.include_router(parser_router, prefix="/parser", tags=["parser"])
-    app.include_router(post_router, prefix="/posts", tags=["posts"])
     app.openapi = lambda: custom_openapi(app)
 
     @app.on_event("startup")

@@ -1,6 +1,12 @@
 from typing import TypedDict
 
+from langchain.agents import create_agent
+
 from app.lib.ai.pdf_tools import extract_pdf_text
+from app.lib.ai.llm.openai_client import get_openai_client
+from app.lib.ai.llm_tools import ParserLlmToolManager
+from app.lib.ai.prompts.parser import PARSER_PROMPT, START_PROMPT
+
 
 class PdfGraphState(TypedDict, total=False):
     pdf_path: str
@@ -26,32 +32,37 @@ async def parse_pdf_node(state: PdfGraphState) -> PdfGraphState:
 async def extract_data_node(state: PdfGraphState) -> PdfGraphState:
     extracted_text = state.get("extracted_text", "")
 
+    # get llm client
+    llm = get_openai_client()
+
+    # get tools
+    tool_manager = ParserLlmToolManager()
+    tools = tool_manager.get_tools()
+
+    agent = create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=PARSER_PROMPT,
+    )
+
+    await agent.ainvoke({
+        "messages": [{"role": "user", "content": START_PROMPT.format(pdf_content=extracted_text)}]
+    })
+
+    extracted_data = tool_manager.get_output()
+
+    print("llm extracted data:", extracted_data)
+
     return {
-        "extracted_data": {
-            "customer": "ACME Corp",
-            "amount": 100.0,
-            "source": "unknown",
-        },
+        "extracted_data": extracted_data,
     }
 
 
 async def normalize_node(state: PdfGraphState) -> PdfGraphState:
     extracted_data = state.get("extracted_data", {})
-    amount = float(extracted_data.get("amount", 0))
-    tax_rate = 19
-    tax_amount = round(amount * tax_rate / 100, 2)
-    total = round(amount + tax_amount, 2)
 
     return {
-        "normalized_data": [
-            {
-                "customer": extracted_data.get("customer", ""),
-                "amount": amount,
-                "tax_rate": tax_rate,
-                "tax_amount": tax_amount,
-                "total": total,
-            }
-        ]
+        "normalized_data": extracted_data
     }
 
 
