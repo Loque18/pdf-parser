@@ -1,83 +1,97 @@
-# FastAPI API
+# PDF Parser API
 
-Initial scaffold for a FastAPI service.
+FastAPI service for uploading PDF files, creating parse requests, processing one job per file, and storing normalized outputs.
 
-## Structure
+## Local development
 
-```text
-.
-|-- app/
-|   |-- lib/
-|   |   `-- config.py
-|   |-- main.py
-|   `-- modules/
-|       `-- health/
-|           |-- dtos.py
-|           |-- router.py
-|           `-- services.py
-|-- tests/
-|   `-- test_health.py
-|-- main.py
-`-- pyproject.toml
-```
-
-## Run
-
-Install dependencies:
+Install dependencies with `uv`:
 
 ```bash
-pip install -e .[dev]
+uv sync
 ```
 
 Start the API:
 
 ```bash
-uvicorn main:app --reload
+uv run uvicorn main:app --reload
 ```
 
-Start a Dramatiq worker:
+Start the worker:
 
 ```bash
-dramatiq app.lib.queue:redis_broker worker
+uv run dramatiq app.modules.parse_request.jobs --processes 1 --threads 1
 ```
 
-## Endpoints
-
-- `GET /health` returns service health metadata.
-
-## Test
+Run tests:
 
 ```bash
-pytest
+uv run pytest
 ```
 
 ## Migrations
 
-Create or apply database migrations with Alembic:
+Apply migrations:
 
 ```bash
-alembic upgrade head
-alembic revision --autogenerate -m "describe change"
+uv run alembic upgrade head
 ```
 
-## Queue
-
-Redis-backed jobs are configured with:
-
-```env
-REDIS_URL=redis://localhost:6379/0
-JOB_QUEUE_ENABLED=true
-```
-
-Run the worker with:
+Create a new migration:
 
 ```bash
-dramatiq app.lib.queue:redis_broker worker
+uv run alembic revision --autogenerate -m "describe change"
 ```
 
-## Docker
+## Docker deployment
 
-Build and start the stack:
+### 1. Create `.env`
+
+Copy the example file:
+
+```bash
+cp .env.example .env
+```
+
+Fill the values before starting the stack.
+
+### 2. Environment variables
+
+The application reads these values from `.env`.
+
+Application:
+
+- `APP_NAME`: FastAPI application name shown in docs and metadata.
+- `APP_VERSION`: application version shown in docs and metadata.
+
+Database:
+
+- `DATABASE_URL`: SQLAlchemy connection string used by the API and worker.
+- `POSTGRES_DB`: database name for the Postgres container.
+- `POSTGRES_USER`: database user for the Postgres container.
+- `POSTGRES_PASSWORD`: database password for the Postgres container.
+
+Queue:
+
+- `REDIS_URL`: Redis connection string used by background jobs.
+
+PDF extraction:
+
+- `LLAMA_API_KEY`: API key used for Llama Cloud PDF parsing.
+
+LLM:
+
+- `LLM_API_KEY`: API key used by the LLM client.
+- `LLM_MODEL`: model name used by the LLM client.
+
+Observability:
+
+- `LANGSMITH_API_KEY`: LangSmith API key.
+- `LANGSMITH_TRACING`: enables or disables LangSmith tracing.
+- `LANGSMITH_PROJECT`: LangSmith project name.
+
+### 3. Start the stack
+
+Build and run:
 
 ```bash
 docker compose up --build
@@ -87,5 +101,24 @@ This starts:
 
 - `api` on `http://localhost:8000`
 - `worker` for Dramatiq jobs
-- `db` on PostgreSQL `localhost:5432`
-- `redis` on `localhost:6379`
+- `db` on `localhost:5432`
+
+The API container runs:
+
+```bash
+alembic upgrade head
+```
+
+before starting Uvicorn.
+
+### 4. Stop the stack
+
+```bash
+docker compose down
+```
+
+To also remove the database volume:
+
+```bash
+docker compose down -v
+```
