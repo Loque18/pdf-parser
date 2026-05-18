@@ -1,11 +1,8 @@
-import json
-from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.lib.config import settings
 from app.lib.storage.storage_service import StorageService
 from app.modules.parse_request.root.parse_request_root_repository import (
     ParseRequestRootRepository,
@@ -15,13 +12,17 @@ from app.modules.parse_request.jobs import process_parser_job
 
 from app.modules.parse_request.root.parse_request_dto import (
     CreateRequestDto, 
-    CreateParseRequestResponse
+    CreateParseRequestResponse,
+    RetrieveRequestResponse,
+    ListUserParseRequestsResponse,
 )
 
 
-
-
-async def parse_pdfs(db: Session, files: list[UploadFile]) -> CreateParseRequestResponse:
+async def parse_pdfs(
+    db: Session,
+    files: list[UploadFile],
+    client_id: str,
+) -> CreateParseRequestResponse:
 
     # 1. store files 
     storage_id = str(uuid4())
@@ -34,7 +35,7 @@ async def parse_pdfs(db: Session, files: list[UploadFile]) -> CreateParseRequest
         storage_id=storage_id,
         stored_files=stored_files,
     )
-    parse_request = repository.create_parse_request(dto)
+    parse_request = repository.create_parse_request(dto, client_id)
     parse_request_with_jobs = repository.get_parse_request_with_jobs(parse_request.id)
 
     # 3. enqueue parser jobs
@@ -53,9 +54,13 @@ async def parse_pdfs(db: Session, files: list[UploadFile]) -> CreateParseRequest
     )
 
 
-def get_parse_request_by_id(db: Session, request_id: str) -> dict[str, Any]:
+def get_parse_request_by_id(
+    db: Session,
+    request_id: str,
+    user_id: str,
+) -> RetrieveRequestResponse:
     repository = ParseRequestRootRepository(db)
-    parse_request = repository.get_parse_request_with_jobs(request_id)
+    parse_request = repository.retrieve_parse_request_by_id(request_id, user_id)
 
     if parse_request is None:
         raise HTTPException(
@@ -63,40 +68,12 @@ def get_parse_request_by_id(db: Session, request_id: str) -> dict[str, Any]:
             detail="Parse request not found",
         )
 
-    results: list[dict[str, Any]] | None = None
-    if parse_request.status.value != "pending":
-        results = []
-        for request_file in parse_request.request_files:
-            parser_output = None
-            if request_file.parse_job is not None:
-                parser_output = request_file.parse_job.parser_output
+    return parse_request
 
-            results.append(
-                {
-                    "file": {
-                        "original_name": request_file.original_name,
-                        "url": request_file.url,
-                        "key": request_file.storage_key,
-                    },
-                    "output": (
-                        None
-                        if parser_output is None
-                        else {
-                            "id": parser_output.id,
-                            "payload": parser_output.payload,
-                        }
-                    ),
-                }
-            )
 
-    return {
-        "parse_req": {
-            "id": parse_request.id,
-            "status": parse_request.status.value,
-            "created_at": parse_request.created_at.isoformat(),
-            "started_at": None,
-            "finished_at": None,
-            "error_message": None,
-            "results": results,
-        }
-    }
+def list_parse_requests_by_user_id(
+    db: Session,
+    user_id: str,
+) -> ListUserParseRequestsResponse:
+    repository = ParseRequestRootRepository(db)
+    return repository.list_parse_requests_by_user_id(user_id)

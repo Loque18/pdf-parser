@@ -1,8 +1,8 @@
 """baseline
 
-Revision ID: c09c0bb88de2
+Revision ID: 35fbd8e86e99
 Revises: 
-Create Date: 2026-05-17 13:24:55.466932
+Create Date: 2026-05-18 15:01:59.472322
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'c09c0bb88de2'
+revision: str = '35fbd8e86e99'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,6 +36,7 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('pending', 'processing', 'processed', 'failed', name='parse_request_status'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('anon_id', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_parse_requests'))
     )
     op.create_table('request_files',

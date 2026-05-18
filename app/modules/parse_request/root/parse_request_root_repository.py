@@ -11,7 +11,12 @@ from app.lib.alembic.request_file_model import RequestFile
 from app.lib.storage.storage_service import StoredFile
 
 # self
-from app.modules.parse_request.root.parse_request_dto import (CreateRequestDto)
+from app.modules.parse_request.root.parse_request_dto import (
+    CreateRequestDto, 
+    RetrieveRequestResponse,
+    ListUserParseRequestsResponse,
+    ResponseBuilder,
+)
 
 
 class ParseRequestRootRepository:
@@ -20,9 +25,11 @@ class ParseRequestRootRepository:
 
     def create_parse_request(
         self,
-        dto: CreateRequestDto        
+        dto: CreateRequestDto,
+        client_id: str,
     ) -> ParseRequest:
         parse_request = ParseRequest(
+            anon_id=client_id,
             storage_id=dto.storage_id,
             status=ParseRequestStatus.pending,
         )
@@ -59,12 +66,54 @@ class ParseRequestRootRepository:
     def get_parse_request_with_jobs(self, request_id: str) -> ParseRequest | None:
         statement = (
             select(ParseRequest)
-            .options(                
+            .options(
                 selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.request_file),
+                selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.parser_output),
             )
             .where(ParseRequest.id == request_id)
         )
         return self.db.scalar(statement)
+
+    def retrieve_parse_request_by_id(
+        self,
+        request_id: str,
+        user_id: str,
+    ) -> RetrieveRequestResponse | None:
+        statement = (
+            select(ParseRequest)
+            .options(
+                selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.request_file),
+                selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.parser_output),
+            )
+            .where(ParseRequest.id == request_id)
+            .where(ParseRequest.anon_id == user_id)
+        )
+        parse_request = self.db.scalar(statement)
+        if parse_request is None:
+            return None
+
+        return ResponseBuilder.build_retrieve_request(parse_request)
+    
+    def list_parse_requests_by_user_id(self, user_id: str) -> ListUserParseRequestsResponse:
+        statement = (
+            select(ParseRequest)
+            .options(
+                selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.request_file),
+                selectinload(ParseRequest.request_jobs)
+                .selectinload(ParseJob.parser_output),
+            )
+            .where(ParseRequest.anon_id == user_id)
+            .order_by(ParseRequest.created_at.desc())
+        )
+        parse_requests = self.db.scalars(statement).all()
+
+        return ResponseBuilder.build_list_requests(parse_requests)
+        
 
     def mark_processing(self, request_id: str) -> ParseRequest | None:
         parse_request = self.get_parse_request(request_id)

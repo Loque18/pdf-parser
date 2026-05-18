@@ -50,6 +50,7 @@ class ParseRequest(Base):
         nullable=True,
     )
 
+    anon_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # ----- relationships ----- #
 
     request_files: Mapped[list["RequestFile"]] = relationship(        
