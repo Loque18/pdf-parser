@@ -8,6 +8,7 @@ from app.lib.di.db import get_db
 from app.modules.parse_request.root.parse_request_dto import (
     CreateParseRequestResponse,
     ListUserParseRequestsResponse,
+    RetrieveRequestResponse
 )
 from app.modules.parse_request.root.parse_request_root_service import (
     get_parse_request_by_id,
@@ -34,10 +35,10 @@ def get_my_parse_requests(
     return list_parse_requests_by_user_id(db, client_id)
 
 
-@router.get("/requests/{request_id}", summary="Get parse request")
+@router.get("/requests/{request_id}", summary="Get parse request", response_model=RetrieveRequestResponse)
 def get_parse_request(
     request_id: str,
     client_id: Annotated[str, Header(alias="X-client-Id")],
     db: Session = Depends(get_db),
-) -> dict:
+) -> RetrieveRequestResponse:
     return get_parse_request_by_id(db, request_id, client_id)

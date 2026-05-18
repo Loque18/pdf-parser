@@ -41,7 +41,7 @@ class ParseRequestRootRepository:
                 original_name=stored_file.original_name,
                 storage_key=stored_file.storage_key,
                 mime_type=stored_file.mime_type,                
-                url=(Path('uploads') / stored_file.storage_key).as_posix(),
+                url=(Path('/uploads') / stored_file.storage_key).as_posix(),
                 parse_request_id=parse_request.id,
                 size=stored_file.size,
             )
