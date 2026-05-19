@@ -9,10 +9,27 @@
 
 ## Main Endpoints
 
-- `POST /parse-requests`
-- `GET /parse-requests/{request_id}`
+- `POST /parser`
+- `GET /parser/requests`
+- `GET /parser/requests/{request_id}`
 
-## POST /parse-requests
+## Authentication / Client Scope
+
+The parse request endpoints are scoped by client identity using the HTTP header:
+
+```text
+X-client-Id: <anonId>
+```
+
+Used by:
+
+- `POST /parser`
+- `GET /parser/requests`
+- `GET /parser/requests/{request_id}`
+
+If the header is missing, the request should fail validation.
+
+## POST /parser
 
 Purpose:
 - Accept a multipart upload with multiple files
@@ -21,72 +38,124 @@ Purpose:
 - Create one `parse_job` per uploaded file
 - Enqueue one background job per file
 
-Suggested response:
+Current response:
 
 ```json
 {
-  "parse_request": {
-    "id": "request-id",
-    "status": "pending",
-    "created_at": "2026-05-16T19:00:00Z"
-  }
+  "id": "request-id",
+  "status": "pending",
+  "created_at": "2026-05-16T19:00:00Z",
+  "expires_at": null
 }
 ```
 
-Recommended status code:
-- `202 Accepted`
+Current status code:
+- `200 OK`
 
-## GET /parse-requests/{request_id}
+## GET /parser/requests
 
 Purpose:
-- Poll the aggregate request status
-- Return per-file processing state and final output
+- List parse requests that belong to the client identified by `X-client-Id`
+- Return one item per request
+- Include jobs, file metadata, and outputs
 
-Suggested response:
+Current response:
 
 ```json
-{
-  "parse_request": {
+[
+  {
     "id": "request-id",
-    "status": "processing",
+    "status": "processed",
     "created_at": "2026-05-16T19:00:00Z",
     "expires_at": "2026-05-17T19:00:00Z",
-    "results": [
+    "jobs": [
       {
+        "id": "job-id",
+        "status": "processed",
+        "created_at": "2026-05-16T19:00:00Z",
+        "started_at": "2026-05-16T19:01:00Z",
+        "finished_at": "2026-05-16T19:01:05Z",
+        "error_message": null,
         "file": {
-          "id": "file-id",
           "original_name": "invoice.pdf",
-          "url": "storage/parse_requests/storage-id/invoice.pdf",
-          "key": "parse_requests/storage-id/invoice.pdf"
-        },
-        "job": {
-          "id": "job-id",
-          "status": "processed",
-          "created_at": "2026-05-16T19:00:00Z",
-          "started_at": "2026-05-16T19:01:00Z",
-          "finished_at": "2026-05-16T19:01:05Z",
-          "error_message": null
+          "url": "uploads/parse_requests/storage-id/invoice.pdf",
+          "mime_type": "application/pdf",
+          "size": 12345
         },
         "output": {
-          "id": 1,
-          "payload": [
-            {
-              "customer": "ACME Corp",
-              "amount": 100.0,
-              "tax_rate": 19,
-              "tax_amount": 19.0,
-              "total": 119.0
-            }
-          ]
+          "id": "1",
+          "payload": {
+            "tables": [
+              {
+                "header": ["invoice ID", "Customer"],
+                "rows": [["inv1", "Acme Corp"]]
+              }
+            ]
+          }
         }
       }
     ]
   }
+]
+```
+
+## GET /parser/requests/{request_id}
+
+Purpose:
+- Retrieve one parse request scoped by `X-client-Id`
+- Return its jobs, file metadata, and final outputs
+
+Current response:
+
+```json
+{
+  "id": "request-id",
+  "status": "processing",
+  "created_at": "2026-05-16T19:00:00Z",
+  "expires_at": "2026-05-17T19:00:00Z",
+  "jobs": [
+    {
+      "id": "job-id",
+      "status": "processed",
+      "created_at": "2026-05-16T19:00:00Z",
+      "started_at": "2026-05-16T19:01:00Z",
+      "finished_at": "2026-05-16T19:01:05Z",
+      "error_message": null,
+      "file": {
+        "original_name": "invoice.pdf",
+        "url": "uploads/parse_requests/storage-id/invoice.pdf",
+        "mime_type": "application/pdf",
+        "size": 12345
+      },
+      "output": {
+        "id": "1",
+        "payload": {
+          "tables": [
+            {
+              "header": ["invoice ID", "Customer"],
+              "rows": [["inv1", "Acme Corp"]]
+            }
+          ]
+        }
+      }
+    }
+  ]
 }
 ```
 
-If the request is still pending:
-- `results` may be `null`
+## Static files
+
+Uploaded files are served publicly through:
+
+```text
+GET /uploads/<path>
+```
+
+Example:
+
+```text
+/uploads/parse_requests/<storage_id>/invoice.pdf
+```
 
 ## Status Model
 
@@ -96,7 +165,6 @@ If the request is still pending:
 - `processing`
 - `processed`
 - `failed`
-- optional later: `partial`
 
 ### parse_job.status
 
@@ -105,10 +173,62 @@ If the request is still pending:
 - `processed`
 - `failed`
 
+## Response Shapes
+
+### CreateParseRequestResponse
+
+```json
+{
+  "id": "request-id",
+  "status": "pending",
+  "created_at": "2026-05-16T19:00:00Z",
+  "expires_at": null
+}
+```
+
+### RetrieveRequestResponse
+
+```json
+{
+  "id": "request-id",
+  "status": "processed",
+  "created_at": "2026-05-16T19:00:00Z",
+  "expires_at": "2026-05-17T19:00:00Z",
+  "jobs": [
+    {
+      "id": "job-id",
+      "status": "processed",
+      "created_at": "2026-05-16T19:00:00Z",
+      "started_at": "2026-05-16T19:01:00Z",
+      "finished_at": "2026-05-16T19:01:05Z",
+      "error_message": null,
+      {
+        "original_name": "invoice.pdf",
+        "url": "uploads/parse_requests/storage-id/invoice.pdf",
+        "mime_type": "application/pdf",
+        "size": 12345
+      },
+      "output": {
+        "id": "1",
+        "payload": {
+          "tables": [
+            {
+              "header": ["invoice ID", "Customer"],
+              "rows": [["inv1", "Acme Corp"]]
+            }
+          ]
+        }
+      }
+    ]
+  ]
+}
+```
+
 ## Public vs Internal Resources
 
 Public:
-- `parse_request`
+- `parse_request` via `/parser`
+- uploaded assets via `/uploads`
 
 Internal:
 - `request_file`
@@ -123,3 +243,5 @@ These internal resources should not have standalone CRUD endpoints initially.
 - `request_file` is only a storage reference
 - `parse_job` is the actual worker unit
 - `parse_output` stores the parsed result payload
+- ownership is scoped by `anon_id` persisted on `parse_request`
+- `X-client-Id` is required to create, list, and retrieve requests
